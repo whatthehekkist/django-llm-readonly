@@ -12,12 +12,12 @@
 pip install django~=4.0 transformers torch pymongo
 ```
 
-# TOC
+<!-- # TOC
 - [config/urls.py](#config/urls.py)
 - [summarizer/urls.py](#summarizer/urls.py)
 - [summarizer/views.py](#summarizer/views.py)
 - [templates/summarizer/index.html](#templates/summarizer/index.html)
-- [static/css/styles.css](#static/css/styles.css)
+- [static/css/styles.css](#static/css/styles.css) -->
 
 
 
