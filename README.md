@@ -272,7 +272,7 @@ def summarize_text(request):
                             # find the 1st matching languageCode starting with en or en-
                             # if track.get("languageCode") == "en":
                             if re.match(r"^en(-|$)", track.get("languageCode", "")):
-                                LANG_CODE = track.get("languageCode")  # init the global variable ANG_CODE here
+                                LANG_CODE = track.get("languageCode")  # init the global variable LANG_CODE here
                                 selected_script = track.get("script")
                                 break
 
