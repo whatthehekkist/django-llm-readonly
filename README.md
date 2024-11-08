@@ -61,8 +61,8 @@ from config import settings
 
 # mongoDB connection
 client = MongoClient(settings.MONGO_URI)
-db = client['ytt']
-urls_collection = db['urls']
+db = client['DB_NAME']
+urls_collection = db['COLLECTION_NAME']
 print("connected to DB...")
 
 # global variables
