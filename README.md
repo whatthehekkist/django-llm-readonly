@@ -152,10 +152,10 @@ def save_summary(request):
                     else:
                         return JsonResponse({'status': 'error', 'message': 'No update made.'}, status=404)
                 else:
+                    # if summary is not null, inform the client with warning
                     return JsonResponse(
                         {'status': 'warning', 'message': 'Existing summary found. Please confirm update.'}, status=409)
             else:
-                # if summary is not null, inform the client with warning
                 return JsonResponse({'status': 'error', 'message': 'Document not found.'}, status=404)
 
         except Exception as e:
@@ -184,7 +184,7 @@ def confirm_summary_update(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
 
-### fucntion that splits into word the input texts to summarize ###
+### fucntion that splits the input texts into word to prepare summarization ###
 def split_text(text):
     words = text.split()  # by space
     current_chunk = []
@@ -212,7 +212,7 @@ def split_text(text):
 """
 function that generates summarization 
 @REMARK: currently, in reusing the last session data on the same request with docId in order to prevent heavy process over mongoDB and transformer
-@TODO: it should be ideal to reuse all session data on the same reqeusts unless the program terminates.
+@TODO: it should be ideal to implement and reuse all session data on the same/existing reqeusts unless the program terminates.
 """
 @csrf_exempt
 def summarize_text(request):
