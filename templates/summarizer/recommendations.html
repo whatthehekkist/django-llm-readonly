@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommendations</title>
+
+    {% load static%}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div>
+        <h2>Recommendations</h2>
+        <div>
+            <button id="recommend">Find documents by similar keywords</button>
+            <button id="save-recommends" type="button">Save to DB</button>
+        </div>
+        <input type="text" id="docId" placeholder="Enter Document ID" required />
+        <div id="recommend-output"></div>
+    </div>
+
+    <!--<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>-->
+    <script>
+        $(document).ready(function() {
+
+            $('#recommend').on('click', function() {
+                const docId = $('#docId').val();
+                $.ajax({
+                    url: '{% url "summarizer:recommend_documents" %}',
+                    type: 'POST',
+                    data: {
+                        'docId': docId,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                         const recommenedOutput = response.documents.map(doc => {
+                            return `
+                                <div style="margin: 10px 0;">
+                                    <p class="docIds">ID: ${doc[0]}<p/>
+                                    <p class="videoIds">Video ID: ${doc[1]}</p>
+                                    <p class="titles">Title: ${doc[2]}</p>
+                                    <p class="keywords">Keywords: ${doc[3]}</p>
+                                    <br><br>
+                                </div>`;
+                        });
+                        $('#recommend-output').html(recommenedOutput.join(''));
+                        $('#recommend-output').show();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error while fetching recommendations: ' + error);
+                    }
+                });
+            });
+
+            $('#save-recommends').on('click', function() {
+
+                // exclude 1st mathing ones cuz it's the data itself
+               const docIds = $('.docIds').map(function(index) {
+                    if (index > 0) {
+                        return $(this).text().split('ID: ')[1].trim();
+                    }
+                }).get().join(", ");
+               const videoIds = $('.videoIds').map(function(index) {
+                    if (index > 0) {
+                        return $(this).text().split('Video ID: ')[1].trim();
+                    }
+                }).get().join(", ");
+               const titles = $('.titles').map(function(index) {
+                    if (index > 0) {
+                        return $(this).text().split('Title: ')[1].trim();
+                    }
+                }).get().join("+++");
+
+                console.log("Save docIds recommendations to DB: ", docIds.trim());
+                const docId = $('#docId').val();
+
+                function saveRecommends() {
+                    $.ajax({
+                        url: '{% url "summarizer:save_recommends" %}',
+                        type: 'POST',
+                        data: {
+                            'docId': docId,
+                            'docIds': docIds,
+                            'videoIds': videoIds,
+                            'titles': titles,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}'
+                        },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                alert('Successfully docIds recommendations to DB');
+                            }
+                        },
+                        error: function(xhr) {
+                            // 409 Conflict
+                            if (xhr.status === 409) {
+                                const response = JSON.parse(xhr.responseText);
+                                console.log(response.status); // warning
+                                const confirmUpdate = confirm(response.message + "\nSURE to UPDATE RECOMMENDATIONS?");
+                                if (confirmUpdate) {
+                                    $.ajax({
+                                        url: '{% url "summarizer:confirm_recommend_update" %}',
+                                        type: 'POST',
+                                        data: {
+                                            'docId': docId,
+                                            'docIds': docIds,
+                                            'videoIds': videoIds,
+                                            'titles': titles,
+                                            'csrfmiddlewaretoken': '{{ csrf_token }}'
+                                        },
+                                        success: function() {
+                                            alert('Successfully saved (over-written) docIds recommendations to DB');
+                                        },
+                                        error: function(xhr, status, error) {
+                                            //alert('error while saving (over-writting) docIds recommendations: ' + error);
+                                            let errorMessage = `Error: ${error}\nStatus: ${status}\n\n`;
+
+                                            if (xhr.responseText) {
+                                                try {
+                                                    const response = JSON.parse(xhr.responseText);
+                                                    errorMessage += `Response: ${JSON.stringify(response)}`;
+                                                } catch (e) {
+                                                    errorMessage += `Response (not JSON): ${xhr.responseText}`;
+                                                }
+                                            }
+
+                                            errorMessage += `Status Code: ${xhr.status}`;
+                                            alert('Error while saving (over-writing): \n' + errorMessage);
+                                        }
+                                    });
+                                }
+                            } else {
+                                alert('error while saving docIds recommendations: ' + error);
+                            }
+                        }
+                    });
+                }
+
+                // call saveRecommends
+                saveRecommends();
+            });
+        });
+    </script>
+</body>
+</html>
+

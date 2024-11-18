@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Summarizer</title>
+
+    {% load static%}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div>
+        <h1>Text Summarizer</h1>
+        <form method="POST" id="summary-form">
+            {% csrf_token %}
+            <label for="docId">Document ID:</label>
+            <input type="text" name="docId" id="docId" placeholder="enter a document ID (mongoDB)"
+                   value="{{ request.POST.docId }}"
+                   required
+                   {% comment %}
+                    {% if script or summary %} disabled {% else %} required {% endif %}
+                   {% endcomment %}
+            >
+            <br>
+            <textarea name="text" rows="10" cols="50"
+                      placeholder="or you can enter text here">
+                {% if summary %}{% else %} {{ script }} {% endif %}
+            </textarea>
+            <br>
+
+            <button type="submit" name="get_script">Load Script</button>
+            <button type="submit" name="summarize">Summarize</button>
+        </form>
+    </div>
+
+    <div id="summary-result">
+         {% if summary %}
+            <h2>Summarization</h2>
+            <div>
+                <p>{{ summary|linebreaks }}</p>
+            </div>
+
+            <div>
+                <button id="paraphrase-summary" type="button">Paraphrase Summary</button>
+                <p id="paraphrased-output"></p>
+            </div>
+
+            <div>
+                <button id="save-summary" type="button">Save Summary to DB</button>
+            </div>
+
+
+            <div>
+                <button id="keyword">Classify Keywords</button>
+                <div id="keyword-output"></div>
+                <button id="save-keyword" type="button">Save keyword to DB</button>
+            </div>
+
+            <div>
+                <h2>Source Script</h2>
+                <p><i>{{ script }}</i></p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!--<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>-->
+    <script>
+        $(document).ready(function() {
+
+            // page refresh requested
+            if (window.performance && window.performance.navigation.type === window.performance.navigation.TYPE_RELOAD) {
+
+                console.log("page refresh detected...");
+                $('#summary-form #docId').val('');
+                $('#summary-form textarea[name="text"]').val('');
+                $('#summary-result').hide();
+
+                //window.location.href = window.location.pathname; // force page refresh
+                //location.href = location.href;
+            }
+
+             // <button id="save-summary" type="button">Save Summary to DB</button>
+            $('#save-summary').on('click', function() {
+                let temp_summary = "";
+                if ($('#paraphrased-output').is(':empty')) { // no paraphrased content exists so go for summary
+                    temp_summary = "{{ summary|escapejs }}";
+                    console.log("Save Summary to DB: ", temp_summary);
+                } else {
+                    // paraphrased content exists (TODO: the quality is too low, not good for production)
+                    temp_summary = $('#paraphrased-output').text();
+                    console.log("Save Summary to DB: ", temp_summary);
+                }
+
+                const summary = temp_summary;
+                const docId = $('#docId').val();
+
+                function saveSummary() {
+                    $.ajax({
+                        url: '{% url "summarizer:save_summary" %}',
+                        type: 'POST',
+                        data: {
+                            'summary': summary,
+                            'docId': docId,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}'
+                        },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                alert('Successfully saved summarization to DB');
+                            }
+                        },
+                        error: function(xhr) {
+                        // 409 Conflict
+                        if (xhr.status === 409) {
+                            const response = JSON.parse(xhr.responseText);
+                            console.log(response.status); // warning
+                            const confirmUpdate = confirm(response.message + "\nSURE to UPDATE?");
+                            if (confirmUpdate) {
+                                $.ajax({
+                                    url: '{% url "summarizer:confirm_summary_update" %}',
+                                    type: 'POST',
+                                    data: {
+                                        'summary': summary,
+                                        'docId': docId,
+                                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                                    },
+                                    success: function() {
+                                        alert('Successfully saved (over-written) summarization to DB');
+                                    },
+                                    error: function(xhr, status, error) {
+                                        alert('error while saving (over-writting): ' + error);
+                                    }
+                                });
+                            }
+                        } else {
+                            alert('error while saving: ' + error);
+                        }
+                    }
+                    });
+                }
+
+                // call saveSummary
+                saveSummary();
+            });
+
+            $('#save-keyword').on('click', function() {
+
+                const keywords = $('#keyword-output').text();
+                console.log("Save Keyword to DB: ", keywords);
+                const docId = $('#docId').val();
+
+                function saveKeywords() {
+                    $.ajax({
+                        url: '{% url "summarizer:save_keywords" %}',
+                        type: 'POST',
+                        data: {
+                            'keywords': keywords,
+                            'docId': docId,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}'
+                        },
+                        success: function(response) {
+                            if (response.status === 'success') {
+                                alert('Successfully saved keywords to DB');
+                            }
+                        },
+                        error: function(xhr) {
+                        // 409 Conflict
+                        if (xhr.status === 409) {
+                            const response = JSON.parse(xhr.responseText);
+                            console.log(response.status); // warning
+                            const confirmUpdate = confirm(response.message + "\nSURE to UPDATE KEYWORDS?");
+                            if (confirmUpdate) {
+                                $.ajax({
+                                    url: '{% url "summarizer:confirm_keyword_update" %}',
+                                    type: 'POST',
+                                    data: {
+                                        'keywords': keywords,
+                                        'docId': docId,
+                                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                                    },
+                                    success: function() {
+                                        alert('Successfully saved (over-written) keywords to DB');
+                                    },
+                                    error: function(xhr, status, error) {
+                                        alert('error while saving (over-writting) keywords: ' + error);
+                                    }
+                                });
+                            }
+                        } else {
+                            alert('error while saving keywords: ' + error);
+                        }
+                    }
+                    });
+                }
+
+                // call saveKeywords
+                saveKeywords();
+            });
+
+            // <button id="paraphrase-summary" type="button">Paraphrase Summary</button>
+            $('#paraphrase-summary').on('click', function() {
+                const summary = "{{ summary|escapejs }}";
+
+                $.ajax({
+                    url: '{% url "summarizer:paraphrase_summary" %}',
+                    type: 'POST',
+                    data: {
+                        'summary': summary,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        $('#paraphrased-output').text(response.paraphrased_summary);
+                        $('#paraphrased-output').show();
+                    },
+                    error: function(xhr, status, error) {
+                        alert('error while paraphrasing: ' + error);
+                    }
+                });
+            });
+
+            $('#keyword').on('click', function() {
+                //const str = "{{ script|escapejs }}";
+                const str = "{{ summary|escapejs }}";
+                $.ajax({
+                        //url: '{% url "summarizer:generate_labels" %}',
+                        url: '{% url "summarizer:classify_labels" %}',
+                        type: 'POST',
+                        data: {
+                            'str': str,
+                            'csrfmiddlewaretoken': '{{ csrf_token }}'
+                        },
+                        success: function(response) {
+                            $('#keyword-output').text(response.labels.join(', '));
+                            $('#keyword-output').show();
+                        },
+                        error: function(xhr, status, error) {
+                            alert('error while classification: ' + error);
+                        }
+                });
+            });
+
+        });
+    </script>
+</body>
+</html>
+
